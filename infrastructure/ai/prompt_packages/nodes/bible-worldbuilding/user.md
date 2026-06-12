@@ -7,6 +7,9 @@
 主题：{genre_theme}
 类型：{genre_label}
 基调：{world_preset}
+剧情结构：{story_structure}
+节奏把控：{pacing_control}
+写作风格：{writing_style}
 特殊要求：{special_requirements}
 目标篇幅：{target_chapters} 章，每章约 {target_words_per_chapter} 字
 

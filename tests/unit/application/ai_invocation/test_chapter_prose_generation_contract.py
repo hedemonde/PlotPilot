@@ -289,7 +289,9 @@ def test_chapter_prose_input_bindings_include_story_setup_and_state_context():
     bindings = {binding.alias: binding for binding in _input_bindings()}
 
     assert bindings["target_words"].variable_key == "chapter.target_words"
+    assert bindings["chapter_title"].variable_key == "chapter.title"
     assert bindings["chapter_outline"].variable_key == "chapter.outline"
+    assert bindings["user_requirements"].variable_key == "chapter.user_requirements"
     assert bindings["continuity_context"].variable_key == "chapter.continuity_context"
     assert bindings["novel_title"].variable_key == "novel.setup.title"
     assert bindings["novel_premise"].variable_key == "novel.setup.premise"

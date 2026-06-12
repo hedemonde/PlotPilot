@@ -19,10 +19,20 @@ variables:
     type: integer
     required: false
     default: 0
+  - name: chapter_title
+    desc: 章节标题
+    type: string
+    required: false
+    default: ''
   - name: chapter_outline
     desc: 正文细纲
     type: string
     required: true
+  - name: user_requirements
+    desc: 用户本次要求
+    type: string
+    required: false
+    default: ''
   - name: continuity_context
     desc: 连续性上下文，默认使用近3章承接摘要
     type: string

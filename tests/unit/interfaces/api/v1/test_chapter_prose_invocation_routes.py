@@ -39,13 +39,15 @@ def _wait_for_status(client: TestClient, session_id: str, expected: str, timeout
     raise AssertionError(f"session {session_id} did not reach {expected}: {latest}")
 
 
-def test_chapter_prose_invocation_http_lifecycle_writes_variable_hub_and_chapters(tmp_path, monkeypatch):
-    db = DatabaseConnection(str(tmp_path / "plotpilot-test.db"))
+def _reset_prompt_singletons() -> None:
+    import infrastructure.ai.prompt_manager as prompt_manager_module
+    import infrastructure.ai.prompt_registry as prompt_registry_module
 
-    monkeypatch.setattr(ai_invocation_routes, "get_database", lambda db_path=None: db)
-    monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
-    monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
+    prompt_manager_module._manager_instance = None
+    prompt_registry_module._registry_instance = None
 
+
+def _install_test_prompt_registry(db: DatabaseConnection):
     import infrastructure.ai.prompt_manager as prompt_manager_module
     import infrastructure.ai.prompt_registry as prompt_registry_module
 
@@ -53,6 +55,22 @@ def test_chapter_prose_invocation_http_lifecycle_writes_variable_hub_and_chapter
     prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
         prompt_manager=prompt_manager_module._manager_instance
     )
+    return prompt_manager_module._manager_instance
+
+
+def _close_test_db(db: DatabaseConnection) -> None:
+    db.close_all(skip_checkpoint=True)
+    _reset_prompt_singletons()
+
+
+def test_chapter_prose_invocation_http_lifecycle_writes_variable_hub_and_chapters(tmp_path, monkeypatch):
+    db = DatabaseConnection(str(tmp_path / "plotpilot-test.db"))
+
+    monkeypatch.setattr(ai_invocation_routes, "get_database", lambda db_path=None: db)
+    monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
+    monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
+
+    _install_test_prompt_registry(db)
     with sqlite_writes_bypass_queue():
         with db.transaction() as conn:
             conn.execute(
@@ -111,7 +129,7 @@ def test_chapter_prose_invocation_http_lifecycle_writes_variable_hub_and_chapter
     )
     assert row == {"content": "HTTP正文", "status": "draft", "word_count": 6}
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)
 
 
 def test_output_bindings_expose_only_user_defined_target_display_names(tmp_path, monkeypatch):
@@ -121,13 +139,7 @@ def test_output_bindings_expose_only_user_defined_target_display_names(tmp_path,
     monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
     monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
 
-    import infrastructure.ai.prompt_manager as prompt_manager_module
-    import infrastructure.ai.prompt_registry as prompt_registry_module
-
-    prompt_manager_module._manager_instance = prompt_manager_module.PromptManager(db)
-    prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
-        prompt_manager=prompt_manager_module._manager_instance
-    )
+    _install_test_prompt_registry(db)
     with sqlite_writes_bypass_queue():
         with db.transaction() as conn:
             conn.execute(
@@ -178,7 +190,7 @@ def test_output_bindings_expose_only_user_defined_target_display_names(tmp_path,
     assert accepted["display_name"] == "采纳正文"
     assert accepted["target_display_name"] == ""
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)
 
 
 def test_bible_setup_invocation_materializes_inputs_and_get_refreshes_snapshot(tmp_path, monkeypatch):
@@ -188,13 +200,7 @@ def test_bible_setup_invocation_materializes_inputs_and_get_refreshes_snapshot(t
     monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
     monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
 
-    import infrastructure.ai.prompt_manager as prompt_manager_module
-    import infrastructure.ai.prompt_registry as prompt_registry_module
-
-    prompt_manager_module._manager_instance = prompt_manager_module.PromptManager(db)
-    prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
-        prompt_manager=prompt_manager_module._manager_instance
-    )
+    _install_test_prompt_registry(db)
 
     app = FastAPI()
     app.include_router(ai_invocation_routes.router)
@@ -253,7 +259,7 @@ def test_bible_setup_invocation_materializes_inputs_and_get_refreshes_snapshot(t
     assert all(item["key"] != "genre_reader_contract" for item in plan["snapshot_items"])
     assert "新设定：变量中心改为天空城债务法则" in refreshed.json()["session"]["prompt_snapshot"]["prompt"]["user"]
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)
 
 
 def test_chapter_prose_prompt_draft_custom_variable_can_be_filled_and_resumed(tmp_path, monkeypatch):
@@ -263,13 +269,7 @@ def test_chapter_prose_prompt_draft_custom_variable_can_be_filled_and_resumed(tm
     monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
     monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
 
-    import infrastructure.ai.prompt_manager as prompt_manager_module
-    import infrastructure.ai.prompt_registry as prompt_registry_module
-
-    prompt_manager_module._manager_instance = prompt_manager_module.PromptManager(db)
-    prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
-        prompt_manager=prompt_manager_module._manager_instance
-    )
+    _install_test_prompt_registry(db)
     with sqlite_writes_bypass_queue():
         with db.transaction() as conn:
             conn.execute(
@@ -330,7 +330,7 @@ def test_chapter_prose_prompt_draft_custom_variable_can_be_filled_and_resumed(tm
     accepted_ready = _wait_for_status(client, session_id, "awaiting_acceptance")
     assert accepted_ready["attempt"]["content"] == "HTTP正文"
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)
 
 
 def test_chapter_prose_prompt_draft_blank_templates_return_400(tmp_path, monkeypatch):
@@ -340,13 +340,7 @@ def test_chapter_prose_prompt_draft_blank_templates_return_400(tmp_path, monkeyp
     monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
     monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
 
-    import infrastructure.ai.prompt_manager as prompt_manager_module
-    import infrastructure.ai.prompt_registry as prompt_registry_module
-
-    prompt_manager_module._manager_instance = prompt_manager_module.PromptManager(db)
-    prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
-        prompt_manager=prompt_manager_module._manager_instance
-    )
+    _install_test_prompt_registry(db)
     with sqlite_writes_bypass_queue():
         with db.transaction() as conn:
             conn.execute(
@@ -389,7 +383,7 @@ def test_chapter_prose_prompt_draft_blank_templates_return_400(tmp_path, monkeyp
     assert saved.status_code == 400, saved.text
     assert saved.json()["detail"] == "User message cannot be empty"
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)
 
 
 def test_chapter_prose_commit_can_promote_prompt_draft_to_cpms(tmp_path, monkeypatch):
@@ -399,13 +393,7 @@ def test_chapter_prose_commit_can_promote_prompt_draft_to_cpms(tmp_path, monkeyp
     monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
     monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
 
-    import infrastructure.ai.prompt_manager as prompt_manager_module
-    import infrastructure.ai.prompt_registry as prompt_registry_module
-
-    prompt_manager_module._manager_instance = prompt_manager_module.PromptManager(db)
-    prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
-        prompt_manager=prompt_manager_module._manager_instance
-    )
+    manager = _install_test_prompt_registry(db)
     with sqlite_writes_bypass_queue():
         with db.transaction() as conn:
             conn.execute(
@@ -417,7 +405,6 @@ def test_chapter_prose_commit_can_promote_prompt_draft_to_cpms(tmp_path, monkeyp
     app.include_router(ai_invocation_routes.router)
     client = TestClient(app)
 
-    manager = prompt_manager_module._manager_instance
     before_node = manager.get_node("chapter-prose-generation", by_key=True)
     assert before_node is not None
     before_version_id = before_node.active_version_id
@@ -498,7 +485,7 @@ def test_chapter_prose_commit_can_promote_prompt_draft_to_cpms(tmp_path, monkeyp
     next_template = created_again.json()["session"]["prompt_snapshot"]["template_prompt"]["user"]
     assert next_template == before_user_template + suffix
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)
 
 
 def test_chapter_prose_get_refresh_keeps_setup_snapshot_without_prompt_injection(tmp_path, monkeypatch):
@@ -508,13 +495,7 @@ def test_chapter_prose_get_refresh_keeps_setup_snapshot_without_prompt_injection
     monkeypatch.setattr("infrastructure.persistence.database.connection.get_database", lambda db_path=None: db)
     monkeypatch.setattr(ai_invocation_routes, "get_llm_service", lambda: _StreamingLLM())
 
-    import infrastructure.ai.prompt_manager as prompt_manager_module
-    import infrastructure.ai.prompt_registry as prompt_registry_module
-
-    prompt_manager_module._manager_instance = prompt_manager_module.PromptManager(db)
-    prompt_registry_module._registry_instance = prompt_registry_module.PromptRegistry(
-        prompt_manager=prompt_manager_module._manager_instance
-    )
+    _install_test_prompt_registry(db)
     with sqlite_writes_bypass_queue():
         with db.transaction() as conn:
             conn.execute(
@@ -583,4 +564,4 @@ def test_chapter_prose_get_refresh_keeps_setup_snapshot_without_prompt_injection
     assert "变量角色" in prompt_user
     assert "变量武道" in prompt_user
 
-    db.close_all(skip_checkpoint=True)
+    _close_test_db(db)

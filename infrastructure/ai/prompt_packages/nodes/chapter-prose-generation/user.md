@@ -1,5 +1,6 @@
 文章字数：{target_words}
 章节号：{chapter_number}
+章节标题：{chapter_title}
 
 【小说正典设定（最高优先级）】
 书名：{novel_title}
@@ -49,6 +50,9 @@
 
 【正文细纲】
 {chapter_outline}
+
+【用户本次要求】
+{user_requirements}
 
 写作硬约束：
 1. 以【正文细纲】为本章唯一剧情骨架，严格按事件链顺序扩写；不得改写核心事件、核心关系和章节目标。

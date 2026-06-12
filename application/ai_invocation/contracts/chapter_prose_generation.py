@@ -21,7 +21,9 @@ def chapter_prose_input_bindings() -> list[VariableBinding]:
     return [
         VariableBinding("target_words", "chapter.target_words", False, 2500, scope="chapter", stage="writing", value_type="integer", display_name="文章目标字数"),
         VariableBinding("chapter_number", "chapter.number", False, 0, scope="chapter", stage="writing", value_type="integer", display_name="章节号"),
+        VariableBinding("chapter_title", "chapter.title", False, "", scope="chapter", stage="writing", display_name="章节标题"),
         VariableBinding("chapter_outline", "chapter.outline", False, "", scope="chapter", stage="writing", display_name="正文细纲"),
+        VariableBinding("user_requirements", "chapter.user_requirements", False, "", scope="chapter", stage="writing", display_name="用户本次要求"),
         VariableBinding("continuity_context", "chapter.continuity_context", False, "", scope="chapter", stage="writing", display_name="连续性上下文"),
         VariableBinding("novel_title", "novel.setup.title", False, "", scope="novel", stage="setup", display_name="书名"),
         VariableBinding("novel_premise", "novel.setup.premise", False, "", scope="novel", stage="setup", display_name="故事创意"),
@@ -73,6 +75,16 @@ def ensure_chapter_prose_generation_contract(db) -> InvocationSpec:
     )
 
     get_prompt_manager().ensure_seeded()
+    try:
+        from infrastructure.ai.prompt_package_sync import force_sync_builtin_prompt_node
+
+        force_sync_builtin_prompt_node(
+            db,
+            node_key=NODE_KEY,
+            change_summary="同步正文生成变量契约",
+        )
+    except Exception:
+        pass
     node = get_prompt_registry().get_node(NODE_KEY)
     if node is None:
         raise RuntimeError(f"CPMS node is not published: {NODE_KEY}")

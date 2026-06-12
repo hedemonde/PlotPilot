@@ -294,10 +294,23 @@ export type BibleStreamPhaseEvent = {
 }
 
 export type BibleStreamDataEvent = {
-  type: 'data'
-  data_type: 'style' | 'worldbuilding_dimension' | 'character' | 'location'
+  type:
+    | 'style'
+    | 'style_chunk'
+    | 'worldbuilding_chunk'
+    | 'worldbuilding_field'
+    | 'worldbuilding_dimension'
+    | 'character'
+    | 'character_chunk'
+    | 'location'
+    | 'location_chunk'
   /** style → string; worldbuilding_dimension → WorldbuildingDimensionData; character/location → 对象 */
   content: unknown
+  /** *_chunk 专属 */
+  chunk?: string
+  /** worldbuilding_field 专属 */
+  field?: string
+  value?: string
   /** worldbuilding_dimension 专属 */
   dimension?: string
   label?: string

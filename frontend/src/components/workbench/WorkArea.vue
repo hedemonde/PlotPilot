@@ -1620,6 +1620,11 @@ async function openProseInvocationForChapter(
   generatingChapterId.value = target.id
   generateInProgress.value = true
   try {
+    const chapterTitle = target.title || ''
+    const userRequirements = options?.userRequirements || ''
+    const chapterOutline = `${ordinalUnit(chapterNumber)}：${chapterTitle || '未命名章节'}
+
+承接前情，推进主线与人物节拍；保持人设、世界观、叙事节奏与前文一致。${userRequirements ? `\n\n本次要求：${userRequirements}` : ''}`
     const payload = await aiInvocationApi.create({
       operation: 'chapter.generate.prose',
       node_key: 'chapter-prose-generation',
@@ -1630,9 +1635,11 @@ async function openProseInvocationForChapter(
       },
       variables: {
         novel_title: props.bookTitle || props.slug,
+        target_words: props.generationPrefs?.target_chapter_words || 2500,
         chapter_number: chapterNumber,
-        chapter_title: target.title || '',
-        user_requirements: options?.userRequirements || '',
+        chapter_title: chapterTitle,
+        chapter_outline: chapterOutline,
+        user_requirements: userRequirements,
       },
     })
     if (props.chapters.some(ch => ch.number === chapterNumber)) {
