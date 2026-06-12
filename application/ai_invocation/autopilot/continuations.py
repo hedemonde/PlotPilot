@@ -434,7 +434,23 @@ def register_autopilot_continuations() -> None:
         chapters = payload.get("chapters") or []
         if not isinstance(chapters, list) or not chapters:
             raise ValueError("autopilot_act_plan_requires_non_empty_chapters")
-        expected_count = int(ctx.session.context.get("chapter_count") or 0)
+        normalized_chapters = []
+        for raw in chapters:
+            if isinstance(raw, dict):
+                chapter = dict(raw)
+                outline = str(chapter.get("outline") or "").strip()
+                title = str(chapter.get("title") or "").strip()
+                if not str(chapter.get("main_event") or "").strip() and outline:
+                    chapter["main_event"] = outline
+                if not str(chapter.get("handoff_from_previous") or "").strip():
+                    chapter["handoff_from_previous"] = outline or title or "承接上一章结果"
+                if not str(chapter.get("handoff_to_next") or "").strip():
+                    chapter["handoff_to_next"] = outline or title or "推进下一章冲突"
+                normalized_chapters.append(chapter)
+            else:
+                normalized_chapters.append(raw)
+        chapters = normalized_chapters
+        expected_count = int(ctx.session.context.get("chapter_count") or len(chapters))
         errors = validate_lightweight_act_plan(chapters, expected_count=expected_count)
         if errors:
             raise ValueError("autopilot_act_plan_incomplete_or_truncated: " + "; ".join(errors))

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 import logging
 
 from application.core.services.novel_service import NovelService
-from application.world.services.auto_bible_generator import AutoBibleGenerator
+from application.world.services.auto_bible_generator import AutoBibleGenerator, build_auto_bible_novel_context
 from application.world.services.auto_knowledge_generator import AutoKnowledgeGenerator
 from application.core.dtos.novel_dto import NovelDTO
 from application.core.chapter_target_limits import CHAPTER_TARGET_WORDS_MAX, CHAPTER_TARGET_WORDS_MIN
@@ -93,7 +93,12 @@ async def _generate_bible_background(
         bible_data = await bible_generator.generate_and_save(
             novel_id,
             title,
-            target_chapters
+            target_chapters,
+            novel_context={
+                "novel.title": title,
+                "novel.premise": title,
+                "novel.target_chapters": target_chapters,
+            },
         )
         # 构建 Bible 摘要供 Knowledge 生成使用
         chars = bible_data.get("characters", [])
@@ -303,7 +308,8 @@ async def generate_bible_alias(
                     novel_id=novel_id,
                     premise=premise,
                     target_chapters=novel.target_chapters,
-                    stage=stage
+                    stage=stage,
+                    novel_context=build_auto_bible_novel_context(novel, premise=premise),
                 )
                 if knowledge_generator and stage in ("all", "worldbuilding"):
                     chars = bible_data.get("characters", [])

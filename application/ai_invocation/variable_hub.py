@@ -525,12 +525,6 @@ class VariableResolver:
                 aliases.setdefault(public_alias, aliases[alias])
                 raw_aliases.setdefault(public_alias, raw_aliases.get(alias, aliases[alias]))
                 lineage.setdefault(public_alias, lineage.get(alias, "alias"))
-                if alias in resolved_from_hub:
-                    resolved_from_hub.add(public_alias)
-                    snapshot_values.setdefault(
-                        public_alias,
-                        snapshot_values.get(alias, raw_aliases.get(alias, aliases[alias])),
-                    )
 
         for alias, value in aliases.items():
             binding = binding_by_alias.get(alias)
@@ -604,13 +598,19 @@ class VariableResolver:
         display_name: str,
     ) -> dict[str, Any]:
         variable_key = binding.variable_key if binding else alias
+        scope = VariableResolver._infer_scope(variable_key)
+        stage = VariableResolver._infer_stage(variable_key)
+        if binding and binding.scope and binding.scope != "runtime":
+            scope = binding.scope
+        if binding and binding.stage and binding.stage != "runtime":
+            stage = binding.stage
         return {
             "key": alias,
             "display_name": display_name,
             "value": value,
             "type": VariableResolver._infer_type(value),
-            "scope": binding.scope if binding and binding.scope else VariableResolver._infer_scope(variable_key),
-            "stage": binding.stage if binding and binding.stage else VariableResolver._infer_stage(variable_key),
+            "scope": scope,
+            "stage": stage,
             "source": "variable_hub" if lineage == "variable_hub" else (binding.source if binding and binding.source else lineage),
             "variable_key": variable_key,
             "required": bool(binding.required) if binding else False,

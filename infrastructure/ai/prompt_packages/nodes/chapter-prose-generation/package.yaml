@@ -14,6 +14,11 @@ variables:
     type: integer
     required: false
     default: 2500
+  - name: chapter_number
+    desc: 章节号
+    type: integer
+    required: false
+    default: 0
   - name: chapter_outline
     desc: 正文细纲
     type: string
@@ -23,5 +28,110 @@ variables:
     type: string
     required: false
     default: ''
+  - name: novel_title
+    desc: 书名
+    type: string
+    required: false
+    default: ''
+  - name: novel_premise
+    desc: 作者原始设定/故事创意
+    type: string
+    required: false
+    default: ''
+  - name: novel_genre_label
+    desc: 类型标签
+    type: string
+    required: false
+    default: ''
+  - name: novel_world_preset
+    desc: 世界观基调
+    type: string
+    required: false
+    default: ''
+  - name: novel_story_structure
+    desc: 剧情结构
+    type: string
+    required: false
+    default: ''
+  - name: novel_pacing_control
+    desc: 节奏把控
+    type: string
+    required: false
+    default: ''
+  - name: novel_writing_style
+    desc: 写作风格
+    type: string
+    required: false
+    default: ''
+  - name: novel_special_requirements
+    desc: 特殊要求
+    type: string
+    required: false
+    default: ''
+  - name: worldbuilding_style
+    desc: 文风公约
+    type: string
+    required: false
+    default: ''
+  - name: worldbuilding_content
+    desc: 结构化世界观
+    type: object
+    required: false
+    default: {}
+  - name: characters_list
+    desc: 角色列表
+    type: list
+    required: false
+    default: []
+  - name: locations_list
+    desc: 地点列表
+    type: list
+    required: false
+    default: []
+  - name: plot_outline
+    desc: 剧情总纲
+    type: object
+    required: false
+    default: {}
+  - name: plot_stage_plan
+    desc: 阶段规划
+    type: list
+    required: false
+    default: []
+  - name: context
+    desc: 结构化上下文
+    type: string
+    required: false
+    default: ''
+  - name: planning_section
+    desc: 规划约束块
+    type: string
+    required: false
+    default: ''
+  - name: voice_block
+    desc: 角色声线块
+    type: string
+    required: false
+    default: ''
+  - name: genre_profile_block
+    desc: 类型画像提示块
+    type: string
+    required: false
+    default: ''
+  - name: genre_opening_profile
+    desc: 类型开篇画像
+    type: object
+    required: false
+    default: {}
+  - name: genre_reader_contract
+    desc: 读者留存契约
+    type: object
+    required: false
+    default: {}
+  - name: genre_rhythm_constraints
+    desc: 类型节奏约束
+    type: object
+    required: false
+    default: {}
 output_format: text
 sort_order: 10

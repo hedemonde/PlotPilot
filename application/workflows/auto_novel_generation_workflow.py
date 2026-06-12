@@ -3,6 +3,7 @@
 整合所有子项目组件，实现完整的章节生成流程。
 """
 import asyncio
+import json
 import logging
 import re
 from typing import Tuple, Dict, Any, AsyncIterator, Optional, List, Callable, Awaitable
@@ -1028,6 +1029,9 @@ class AutoNovelGenerationWorkflow:
         beat_target_words: Optional[int] = None,
         voice_anchors: str = "",
         chapter_draft_so_far: str = "",
+        genre_opening_profile: Optional[Dict[str, Any]] = None,
+        genre_reader_contract: Optional[Dict[str, Any]] = None,
+        genre_rhythm_constraints: Optional[Dict[str, Any]] = None,
     ) -> Prompt:
         """构建与 HTTP 单章 / 流式 / 托管按节拍写作一致的 Prompt（对外 API）。"""
         return self._build_prompt(
@@ -1042,6 +1046,9 @@ class AutoNovelGenerationWorkflow:
             beat_target_words=beat_target_words,
             voice_anchors=voice_anchors,
             chapter_draft_so_far=chapter_draft_so_far,
+            genre_opening_profile=genre_opening_profile,
+            genre_reader_contract=genre_reader_contract,
+            genre_rhythm_constraints=genre_rhythm_constraints,
         )
 
     def _build_prompt(
@@ -1060,6 +1067,9 @@ class AutoNovelGenerationWorkflow:
         chapter_draft_so_far: str = "",
         regeneration_guidance: Optional[str] = None,
         chapter_target_words: Optional[int] = None,
+        genre_opening_profile: Optional[Dict[str, Any]] = None,
+        genre_reader_contract: Optional[Dict[str, Any]] = None,
+        genre_rhythm_constraints: Optional[Dict[str, Any]] = None,
     ) -> Prompt:
         """构建 LLM 提示词
 
@@ -1108,6 +1118,21 @@ class AutoNovelGenerationWorkflow:
             voice_block = (
                 "\n【角色声线与肢体语言（Bible 锚点，必须遵守）】\n"
                 f"{va}\n\n"
+            )
+        genre_profile_block = ""
+        if genre_opening_profile or genre_reader_contract or genre_rhythm_constraints:
+            genre_profile_block = (
+                "\n【类型开篇画像 / 读者契约 / 节奏约束】\n"
+                + json.dumps(
+                    {
+                        "genre_opening_profile": genre_opening_profile or {},
+                        "genre_reader_contract": genre_reader_contract or {},
+                        "genre_rhythm_constraints": genre_rhythm_constraints or {},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n\n"
             )
 
         prior_in_chapter = format_prior_draft_for_prompt(chapter_draft_so_far)
@@ -1212,6 +1237,7 @@ class AutoNovelGenerationWorkflow:
             "theme_rules": theme_rules,
             "planning_section": planning_section,
             "voice_block": voice_block,
+            "genre_profile_block": genre_profile_block,
             "context": context,
             "fact_lock": fact_lock,
             "shuangwen_directive": shuangwen_directive,

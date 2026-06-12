@@ -21,6 +21,121 @@ from infrastructure.ai.prompt_keys import (
 logger = logging.getLogger(__name__)
 
 
+def build_auto_bible_novel_context(novel: Any, *, premise: str | None = None) -> Dict[str, Any]:
+    """Build the rich setup context expected by Bible CPMS prompts."""
+    genre_label = str(getattr(novel, "locked_genre", "") or "").strip()
+    genre_parts = [part.strip() for part in genre_label.split("/") if part.strip()]
+    resolved_premise = str(premise or getattr(novel, "premise", "") or getattr(novel, "title", "") or "").strip()
+    context = {
+        "novel.title": str(getattr(novel, "title", "") or "").strip(),
+        "novel.premise": resolved_premise,
+        "novel.genre_major": genre_parts[0] if genre_parts else "",
+        "novel.genre_theme": " / ".join(genre_parts[1:]) if len(genre_parts) > 1 else "",
+        "novel.genre_label": genre_label,
+        "novel.world_preset": str(getattr(novel, "locked_world_preset", "") or "").strip(),
+        "novel.story_structure": str(getattr(novel, "locked_story_structure", "") or "").strip(),
+        "novel.pacing_control": str(getattr(novel, "locked_pacing_control", "") or "").strip(),
+        "novel.writing_style": str(getattr(novel, "locked_writing_style", "") or "").strip(),
+        "novel.special_requirements": str(getattr(novel, "locked_special_requirements", "") or "").strip(),
+        "novel.target_chapters": int(getattr(novel, "target_chapters", 0) or 0),
+        "novel.target_words_per_chapter": int(getattr(novel, "target_words_per_chapter", 0) or 0),
+    }
+    context.update(
+        {
+            "title": context["novel.title"],
+            "premise": context["novel.premise"],
+            "genre": context["novel.genre_label"],
+            "genre_major": context["novel.genre_major"],
+            "genre_theme": context["novel.genre_theme"],
+            "genre_label": context["novel.genre_label"],
+            "world_preset": context["novel.world_preset"],
+            "story_structure": context["novel.story_structure"],
+            "pacing_control": context["novel.pacing_control"],
+            "writing_style": context["novel.writing_style"],
+            "special_requirements": context["novel.special_requirements"],
+            "target_chapters": context["novel.target_chapters"],
+            "target_words_per_chapter": context["novel.target_words_per_chapter"],
+        }
+    )
+    return context
+
+
+def _novel_context_value(context: Dict[str, Any], key: str, default: Any = "") -> Any:
+    if key in context:
+        return context[key]
+    if key.startswith("novel."):
+        nested = context.get("novel")
+        if isinstance(nested, dict):
+            return nested.get(key.split(".", 1)[1], default)
+    return default
+
+
+def _merge_auto_bible_prompt_context(
+    premise: str | None,
+    target_chapters: int,
+    novel_context: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    context = dict(novel_context or {})
+    resolved_premise = str(
+        _novel_context_value(context, "novel.premise")
+        or context.get("premise")
+        or premise
+        or ""
+    ).strip()
+    resolved_target_chapters = (
+        _novel_context_value(context, "novel.target_chapters")
+        or context.get("target_chapters")
+        or target_chapters
+        or 0
+    )
+    try:
+        resolved_target_chapters = int(resolved_target_chapters)
+    except (TypeError, ValueError):
+        resolved_target_chapters = 0
+
+    variables = {
+        **context,
+        "novel.title": str(_novel_context_value(context, "novel.title") or context.get("title") or "").strip(),
+        "novel.premise": resolved_premise,
+        "novel.genre_major": str(_novel_context_value(context, "novel.genre_major") or context.get("genre_major") or "").strip(),
+        "novel.genre_theme": str(_novel_context_value(context, "novel.genre_theme") or context.get("genre_theme") or "").strip(),
+        "novel.genre_label": str(_novel_context_value(context, "novel.genre_label") or context.get("genre_label") or context.get("genre") or "").strip(),
+        "novel.world_preset": str(_novel_context_value(context, "novel.world_preset") or context.get("world_preset") or "").strip(),
+        "novel.story_structure": str(_novel_context_value(context, "novel.story_structure") or context.get("story_structure") or "").strip(),
+        "novel.pacing_control": str(_novel_context_value(context, "novel.pacing_control") or context.get("pacing_control") or "").strip(),
+        "novel.writing_style": str(_novel_context_value(context, "novel.writing_style") or context.get("writing_style") or "").strip(),
+        "novel.special_requirements": str(
+            _novel_context_value(context, "novel.special_requirements")
+            or context.get("special_requirements")
+            or ""
+        ).strip(),
+        "novel.target_chapters": resolved_target_chapters,
+        "novel.target_words_per_chapter": (
+            _novel_context_value(context, "novel.target_words_per_chapter")
+            or context.get("target_words_per_chapter")
+            or 0
+        ),
+    }
+    variables.update(
+        {
+            "title": variables["novel.title"],
+            "premise": variables["novel.premise"],
+            "genre": variables["novel.genre_label"],
+            "genre_major": variables["novel.genre_major"],
+            "genre_theme": variables["novel.genre_theme"],
+            "genre_label": variables["novel.genre_label"],
+            "world_preset": variables["novel.world_preset"],
+            "story_structure": variables["novel.story_structure"],
+            "pacing_control": variables["novel.pacing_control"],
+            "writing_style": variables["novel.writing_style"],
+            "special_requirements": variables["novel.special_requirements"],
+            "target_chapters": variables["novel.target_chapters"],
+            "target_words_per_chapter": variables["novel.target_words_per_chapter"],
+        }
+    )
+    return variables
+
+
 # ============================================================================
 # 流式 JSON 数组增量解析器
 # ============================================================================
@@ -488,9 +603,11 @@ class AutoBibleGenerator:
     async def generate_and_save(
         self,
         novel_id: str,
-        premise: str,
-        target_chapters: int,
-        stage: str = "all"
+        premise: str | None = None,
+        target_chapters: int = 0,
+        stage: str = "all",
+        novel_context: Dict[str, Any] | None = None,
+        title: str | None = None,
     ) -> Dict[str, Any]:
         """生成并保存 Bible（支持分阶段）
 
@@ -503,6 +620,14 @@ class AutoBibleGenerator:
         Returns:
             生成的 Bible 数据
         """
+        prompt_context = _merge_auto_bible_prompt_context(
+            premise or title,
+            target_chapters,
+            novel_context,
+        )
+        premise = str(prompt_context.get("premise") or title or "")
+        target_chapters = int(prompt_context.get("target_chapters") or target_chapters or 0)
+
         logger.info(f"Generating Bible for novel: {premise[:50]}... (stage: {stage})")
 
         ensure_trace(novel_id=novel_id, stage="world.bible.generate", stage_label="圣经生成")
@@ -530,7 +655,7 @@ class AutoBibleGenerator:
         # 2. 根据阶段生成不同内容
         if stage == "all":
             # 一次性生成所有内容（向后兼容）
-            bible_data = await self._generate_bible_data(premise, target_chapters)
+            bible_data = await self._generate_bible_data(premise, target_chapters, prompt_context)
             await self._save_to_bible(novel_id, bible_data)
             if self.worldbuilding_service and "worldbuilding" in bible_data:
                 await self._save_worldbuilding(novel_id, bible_data["worldbuilding"])
@@ -547,7 +672,7 @@ class AutoBibleGenerator:
 
             logger.debug("Calling _generate_worldbuilding_and_style")
             # 只生成世界观和文风
-            bible_data = await self._generate_worldbuilding_and_style(premise, target_chapters)
+            bible_data = await self._generate_worldbuilding_and_style(premise, target_chapters, prompt_context)
             logger.debug("_generate_worldbuilding_and_style completed, keys=%s", list(bible_data.keys()))
             logger.debug("Has 'worldbuilding' key: %s, worldbuilding_service is None: %s", 'worldbuilding' in bible_data, self.worldbuilding_service is None)
             # 保存文风
@@ -582,7 +707,7 @@ class AutoBibleGenerator:
 
             # 基于已有世界观生成人物
             existing_worldbuilding = self._load_worldbuilding(novel_id)
-            bible_data = await self._generate_characters(premise, target_chapters, existing_worldbuilding)
+            bible_data = await self._generate_characters(premise, target_chapters, existing_worldbuilding, prompt_context)
             chars_payload = bible_data.get("characters") or []
             if not chars_payload:
                 raise ValueError(
@@ -652,7 +777,13 @@ class AutoBibleGenerator:
             # 基于已有世界观和人物生成地点
             existing_worldbuilding = self._load_worldbuilding(novel_id)
             existing_characters = self._load_characters(novel_id)
-            bible_data = await self._generate_locations(premise, target_chapters, existing_worldbuilding, existing_characters)
+            bible_data = await self._generate_locations(
+                premise,
+                target_chapters,
+                existing_worldbuilding,
+                existing_characters,
+                prompt_context,
+            )
             locs_payload = bible_data.get("locations") or []
             if not locs_payload:
                 raise ValueError(
@@ -691,16 +822,17 @@ class AutoBibleGenerator:
         logger.info(f"Bible generation completed for {novel_id} (stage: {stage})")
         return bible_data
 
-    async def _generate_bible_data(self, premise: str, target_chapters: int) -> Dict[str, Any]:
+    async def _generate_bible_data(
+        self,
+        premise: str,
+        target_chapters: int,
+        novel_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """使用 LLM 生成 Bible 数据和世界观"""
 
         prompt = _render_required_bible_prompt(
             BIBLE_ALL,
-            {
-                "premise": premise,
-                "genre": "",
-                "target_chapters": target_chapters,
-            },
+            _merge_auto_bible_prompt_context(premise, target_chapters, novel_context),
         )
 
         bible_data = await self._call_llm_and_parse_with_retry(prompt.system, prompt.user)
@@ -893,20 +1025,19 @@ class AutoBibleGenerator:
         except Exception:
             return []
 
-    async def _generate_worldbuilding_and_style(self, premise: str, target_chapters: int) -> Dict[str, Any]:
+    async def _generate_worldbuilding_and_style(
+        self,
+        premise: str,
+        target_chapters: int,
+        novel_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """只生成世界观和文风（一次性生成全部5维度，向后兼容非SSE场景）"""
+        context = _merge_auto_bible_prompt_context(premise, target_chapters, novel_context)
         prompt = _render_required_bible_prompt(
             BIBLE_WORLDBUILDING,
             {
-                "premise": premise,
-                "novel_title": "",
-                "genre_major": "",
-                "genre_theme": "",
-                "genre_label": "",
-                "world_preset": "",
-                "target_chapters": target_chapters,
-                "target_words_per_chapter": 0,
-                "special_requirements": "",
+                **context,
+                "novel_title": context["novel.title"],
                 "worldbuilding_full": "",
                 "core_rules": "",
                 "geography": "",
@@ -914,7 +1045,16 @@ class AutoBibleGenerator:
                 "culture": "",
                 "daily_life": "",
                 "fields_desc": self._build_worldbuilding_json_schema_desc(),
-                "novel_setup": f"故事创意：{premise}\n目标章节数：{target_chapters}",
+                "novel_setup": (
+                    f"书名：{context['novel.title']}\n"
+                    f"故事创意：{context['novel.premise']}\n"
+                    f"类型：{context['novel.genre_label']}\n"
+                    f"基调：{context['novel.world_preset']}\n"
+                    f"剧情结构：{context['novel.story_structure']}\n"
+                    f"写作风格：{context['novel.writing_style']}\n"
+                    f"特殊要求：{context['novel.special_requirements']}\n"
+                    f"目标章节数：{context['novel.target_chapters']}"
+                ),
                 "genre_opening_profile": {},
                 "genre_reader_contract": {},
                 "genre_rhythm_constraints": {},
@@ -952,8 +1092,10 @@ class AutoBibleGenerator:
         accumulated: Dict[str, Dict[str, str]],
         attempt: int,
         missing_fields: set[str] | None = None,
+        novel_context: Dict[str, Any] | None = None,
     ) -> Prompt:
         """Render the CPMS worldbuilding prompt for one schema dimension."""
+        context = _merge_auto_bible_prompt_context(premise, target_chapters, novel_context)
         fields_desc = self._build_worldbuilding_json_schema_desc_for([dim_key])
         prior_worldbuilding = json.dumps(accumulated, ensure_ascii=False, indent=2)[:8000]
         missing_text = "、".join(sorted(missing_fields or [])) or "无"
@@ -966,19 +1108,14 @@ class AutoBibleGenerator:
         return _render_required_bible_prompt(
             BIBLE_WORLDBUILDING,
             {
-                "premise": premise,
-                "novel_title": "",
-                "genre_major": "",
-                "genre_theme": "",
-                "genre_label": "",
-                "world_preset": "",
-                "target_chapters": target_chapters,
-                "target_words_per_chapter": 0,
+                **context,
+                "novel_title": context["novel.title"],
                 "fields_desc": fields_desc,
                 "genre_opening_profile": profile,
                 "genre_reader_contract": {},
                 "genre_rhythm_constraints": {},
                 "special_requirements": (
+                    f"{context['novel.special_requirements']}\n"
                     f"本次只生成 `{dim_key}` 这一个世界观维度；"
                     "该维度必须是 JSON object，不得写成字符串；"
                     f"必须包含 fields_desc 列出的所有子字段。缺失字段：{missing_text}。"
@@ -1000,6 +1137,7 @@ class AutoBibleGenerator:
         self,
         premise: str,
         target_chapters: int,
+        novel_context: Dict[str, Any] | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """逐维度流式生成完整五维世界观。
 
@@ -1037,6 +1175,7 @@ class AutoBibleGenerator:
                     accumulated=accumulated,
                     attempt=attempt,
                     missing_fields=missing,
+                    novel_context=novel_context,
                 )
 
                 try:
@@ -1114,10 +1253,15 @@ class AutoBibleGenerator:
 
     # ── 文风公约（世界观由 _stream_worldbuilding_full 分维度流式生成）────────
 
-    async def _generate_style(self, premise: str, target_chapters: int) -> str:
+    async def _generate_style(
+        self,
+        premise: str,
+        target_chapters: int,
+        novel_context: Dict[str, Any] | None = None,
+    ) -> str:
         """Generate style convention via CPMS."""
         chunks: list[str] = []
-        async for item in self._stream_style(premise, target_chapters):
+        async for item in self._stream_style(premise, target_chapters, novel_context):
             if item.get("type") == "chunk":
                 chunks.append(str(item.get("text") or ""))
             elif item.get("type") == "done":
@@ -1128,15 +1272,14 @@ class AutoBibleGenerator:
         self,
         premise: str,
         target_chapters: int,
+        novel_context: Dict[str, Any] | None = None,
     ) -> AsyncIterator[Dict[str, str]]:
         """Stream style convention tokens and return the final text."""
         from infrastructure.ai.prompt_keys import BIBLE_STYLE_CONVENTION
         from infrastructure.ai.prompt_registry import get_prompt_registry
 
-        variables = {
-            "premise": premise,
-            "target_chapters": str(target_chapters),
-        }
+        variables = _merge_auto_bible_prompt_context(premise, target_chapters, novel_context)
+        variables["target_chapters"] = str(variables["target_chapters"])
 
         registry = get_prompt_registry()
         prompt = registry.render_to_prompt(BIBLE_STYLE_CONVENTION, variables)
@@ -1156,19 +1299,24 @@ class AutoBibleGenerator:
         yield {"type": "done", "style": "".join(chunks).strip()}
 
     # 维度定义：key → (label, field_definitions)
-    async def _generate_characters(self, premise: str, target_chapters: int, worldbuilding: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_characters(
+        self,
+        premise: str,
+        target_chapters: int,
+        worldbuilding: Dict[str, Any],
+        novel_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """基于世界观生成人物"""
         from application.world.services.narrative_contract_text import build_worldbuilding_prompt_fields
 
         wb_fields = build_worldbuilding_prompt_fields(worldbuilding_slices=worldbuilding)
+        context = _merge_auto_bible_prompt_context(premise, target_chapters, novel_context)
 
         prompt = _render_required_bible_prompt(
             BIBLE_CHARACTERS,
             {
+                **context,
                 **wb_fields,
-                "novel.premise": premise,
-                "premise": premise,
-                "target_chapters": target_chapters,
                 "worldbuilding.content": worldbuilding or {},
                 "worldbuilding.style": "",
                 "style_guide": "",
@@ -1185,6 +1333,7 @@ class AutoBibleGenerator:
         premise: str,
         target_chapters: int,
         worldbuilding: Dict[str, Any],
+        novel_context: Dict[str, Any] | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """流式生成人物：LLM 逐 token 输出，增量解析 JSON 数组，
         每解析完一个角色对象立即 yield 给调用方。
@@ -1197,13 +1346,12 @@ class AutoBibleGenerator:
         from application.world.services.narrative_contract_text import build_worldbuilding_prompt_fields
 
         wb_fields = build_worldbuilding_prompt_fields(worldbuilding_slices=worldbuilding)
+        context = _merge_auto_bible_prompt_context(premise, target_chapters, novel_context)
         prompt = _render_required_bible_prompt(
             BIBLE_CHARACTERS,
             {
+                **context,
                 **wb_fields,
-                "novel.premise": premise,
-                "premise": premise,
-                "target_chapters": target_chapters,
                 "worldbuilding.content": worldbuilding or {},
                 "worldbuilding.style": "",
                 "style_guide": "",
@@ -1243,12 +1391,19 @@ class AutoBibleGenerator:
 
         yield {"type": "done", "count": char_index}
 
-    async def _generate_locations(self, premise: str, target_chapters: int, worldbuilding: Dict[str, Any], characters: list) -> Dict[str, Any]:
+    async def _generate_locations(
+        self,
+        premise: str,
+        target_chapters: int,
+        worldbuilding: Dict[str, Any],
+        characters: list,
+        novel_context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
         """基于世界观和人物生成地点"""
         prompt = _render_required_bible_prompt(
             BIBLE_LOCATIONS,
             {
-                "novel.premise": premise,
+                **_merge_auto_bible_prompt_context(premise, target_chapters, novel_context),
                 "worldbuilding.content": worldbuilding or {},
                 "characters.list": characters or [],
             },
@@ -1264,6 +1419,7 @@ class AutoBibleGenerator:
         target_chapters: int,
         worldbuilding: Dict[str, Any],
         characters: list,
+        novel_context: Dict[str, Any] | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """流式生成地点：LLM 逐 token 输出，增量解析 JSON 数组，
         每解析完一个地点对象立即 yield 给调用方。
@@ -1273,7 +1429,7 @@ class AutoBibleGenerator:
         prompt = _render_required_bible_prompt(
             BIBLE_LOCATIONS,
             {
-                "novel.premise": premise,
+                **_merge_auto_bible_prompt_context(premise, target_chapters, novel_context),
                 "worldbuilding.content": worldbuilding or {},
                 "characters.list": characters or [],
             },

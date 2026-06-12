@@ -250,7 +250,7 @@ def test_chapter_prose_inputs_are_materialized_to_variable_hub():
         input_binding_set_id,
         NODE_KEY,
         [
-            VariableBinding("novel_title", "novel.title", True, scope="novel", stage="setup"),
+            VariableBinding("novel_title", "novel.setup.title", True, scope="novel", stage="setup"),
             VariableBinding("chapter_outline", "chapter.outline", True, scope="chapter", stage="writing"),
         ],
         direction="input",
@@ -277,7 +277,7 @@ def test_chapter_prose_inputs_are_materialized_to_variable_hub():
         updated_by="test",
     )
 
-    title = repo.get_value("novel.title", "novel_id:novel-1|chapter_number:2")
+    title = repo.get_value("novel.setup.title", "novel_id:novel-1")
     outline = repo.get_value("chapter.outline", "novel_id:novel-1|chapter_number:2")
     assert not result.get("skipped")
     assert title is not None and title.value == "小说名"
@@ -285,13 +285,19 @@ def test_chapter_prose_inputs_are_materialized_to_variable_hub():
     assert session.metadata["input_variable_materialization"]["written"]
 
 
-def test_chapter_prose_input_bindings_stay_minimal_for_prose_prompt():
+def test_chapter_prose_input_bindings_include_story_setup_and_state_context():
     bindings = {binding.alias: binding for binding in _input_bindings()}
 
-    assert set(bindings) == {"target_words", "chapter_outline", "continuity_context"}
     assert bindings["target_words"].variable_key == "chapter.target_words"
     assert bindings["chapter_outline"].variable_key == "chapter.outline"
     assert bindings["continuity_context"].variable_key == "chapter.continuity_context"
+    assert bindings["novel_title"].variable_key == "novel.setup.title"
+    assert bindings["novel_premise"].variable_key == "novel.setup.premise"
+    assert bindings["worldbuilding_content"].variable_key == "worldbuilding.content"
+    assert bindings["characters_list"].variable_key == "characters.list"
+    assert bindings["plot_outline"].variable_key == "plot.outline"
+    assert bindings["genre_profile_block"].source == "derived_config"
+    assert bindings["context"].source == "runtime_only"
 
 
 class _FakeNode:
@@ -342,7 +348,7 @@ class _LegacyChapterProseNode:
         return "s"
 
     def get_active_user_template(self):
-        return "章节大纲：{chapter_outline}"
+        return "设定：{novel_premise}\n章节大纲：{chapter_outline}"
 
 
 class _LegacyChapterProseRegistry:
@@ -350,14 +356,14 @@ class _LegacyChapterProseRegistry:
         return _LegacyChapterProseNode()
 
 
-def test_chapter_prose_prompt_does_not_auto_inject_setup_context():
+def test_chapter_prose_prompt_can_render_setup_context_when_template_references_it():
     spec = InvocationSpec(
         operation="chapter.generate.prose",
         node_key=NODE_KEY,
         prompt_node_version_id="node-v1",
     )
     variable_plan = VariablePlan(
-        aliases={"chapter_outline": "追击"},
+        aliases={"chapter_outline": "追击", "novel_premise": "变量中心设定"},
         snapshot_items=(
             {
                 "key": "premise",
@@ -374,14 +380,17 @@ def test_chapter_prose_prompt_does_not_auto_inject_setup_context():
     ).compile(spec=spec, variable_plan=variable_plan)
 
     assert "章节大纲：追击" in snapshot.prompt.user
-    assert "变量中心" not in snapshot.prompt.user
-    assert "变量中心设定" not in snapshot.prompt.user
+    assert "设定：变量中心设定" in snapshot.prompt.user
 
 
-def test_chapter_prose_does_not_bind_story_setup_variables():
+def test_chapter_prose_binds_story_setup_variables_without_legacy_aliases():
     bindings = {binding.alias: binding for binding in _input_bindings()}
 
-    assert "novel_title" not in bindings
+    assert "novel_title" in bindings
+    assert "novel_premise" in bindings
+    assert "worldbuilding_content" in bindings
+    assert "characters_list" in bindings
+    assert "plot_outline" in bindings
     assert "genre" not in bindings
     assert "style_guide" not in bindings
     assert "world_context" not in bindings

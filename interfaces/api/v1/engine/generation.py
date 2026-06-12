@@ -35,7 +35,7 @@ from application.engine.dtos.scene_director_dto import SceneDirectorAnalysis
 from application.engine.services.hosted_write_service import HostedWriteService
 from application.paths import get_db_path
 from application.workflows.auto_novel_generation_workflow import AutoNovelGenerationWorkflow
-from application.world.services.auto_bible_generator import AutoBibleGenerator
+from application.world.services.auto_bible_generator import AutoBibleGenerator, build_auto_bible_novel_context
 from application.world.services.auto_knowledge_generator import AutoKnowledgeGenerator
 from domain.novel.entities.plot_arc import PlotArc
 from domain.novel.repositories.plot_arc_repository import PlotArcRepository
@@ -1522,8 +1522,9 @@ async def generate_bible(
 
         bible_data = await bible_generator.generate_and_save(
             novel_id=novel_id,
-            title=novel.title,
+            premise=novel.premise or novel.title,
             target_chapters=novel.target_chapters,
+            novel_context=build_auto_bible_novel_context(novel, premise=novel.premise or novel.title),
         )
 
         chars = bible_data.get("characters", [])

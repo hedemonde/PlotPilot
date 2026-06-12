@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 from application.world.services.auto_bible_generator import (
     AutoBibleGenerator,
     BiblePromptTemplateUnavailable,
+    build_auto_bible_novel_context,
 )
 from domain.ai.services.llm_service import DEFAULT_MAX_OUTPUT_TOKENS, GenerationResult
 from domain.ai.value_objects.token_usage import TokenUsage
@@ -78,6 +79,44 @@ async def test_generate_bible_data_uses_hardened_parser_path():
     assert result["style"] == "s"
     _, config = llm.generate.await_args.args
     assert config.max_tokens == DEFAULT_MAX_OUTPUT_TOKENS
+
+
+@pytest.mark.asyncio
+async def test_generate_bible_data_injects_locked_novel_context():
+    class Novel:
+        title = "雨季来信"
+        premise = "大三那年的春天，苏念唯一的亲人奶奶走了。沈屿在春末最后一场雨之前出现。"
+        locked_genre = "现实情感/暗恋救赎"
+        locked_world_preset = "现代校园与都市交界"
+        locked_story_structure = "双时间线"
+        locked_pacing_control = "慢热克制"
+        locked_writing_style = "细腻写实"
+        locked_special_requirements = "不得加入修仙、王朝、血脉宿命或幕后黑手"
+        target_chapters = 80
+        target_words_per_chapter = 2600
+
+    llm = Mock()
+    llm.generate = AsyncMock(
+        return_value=GenerationResult(
+            content='{"characters":[],"locations":[],"style":"s","worldbuilding":{}}',
+            token_usage=TokenUsage(input_tokens=1, output_tokens=1),
+        )
+    )
+    svc = AutoBibleGenerator(llm_service=llm, bible_service=Mock())
+
+    await svc._generate_bible_data(
+        Novel.premise,
+        Novel.target_chapters,
+        build_auto_bible_novel_context(Novel()),
+    )
+
+    prompt, _config = llm.generate.await_args.args
+    assert "雨季来信" in prompt.user
+    assert "苏念唯一的亲人奶奶走了" in prompt.user
+    assert "现实情感/暗恋救赎" in prompt.user
+    assert "现代校园与都市交界" in prompt.user
+    assert "细腻写实" in prompt.user
+    assert "不得加入修仙、王朝、血脉宿命或幕后黑手" in prompt.user
 
 
 @pytest.mark.asyncio

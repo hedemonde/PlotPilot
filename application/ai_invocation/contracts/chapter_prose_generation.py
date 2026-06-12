@@ -20,8 +20,30 @@ CONTINUATION_HANDLER_KEY = "chapter_generate_prose_commit"
 def chapter_prose_input_bindings() -> list[VariableBinding]:
     return [
         VariableBinding("target_words", "chapter.target_words", False, 2500, scope="chapter", stage="writing", value_type="integer", display_name="文章目标字数"),
+        VariableBinding("chapter_number", "chapter.number", False, 0, scope="chapter", stage="writing", value_type="integer", display_name="章节号"),
         VariableBinding("chapter_outline", "chapter.outline", False, "", scope="chapter", stage="writing", display_name="正文细纲"),
         VariableBinding("continuity_context", "chapter.continuity_context", False, "", scope="chapter", stage="writing", display_name="连续性上下文"),
+        VariableBinding("novel_title", "novel.setup.title", False, "", scope="novel", stage="setup", display_name="书名"),
+        VariableBinding("novel_premise", "novel.setup.premise", False, "", scope="novel", stage="setup", display_name="故事创意"),
+        VariableBinding("novel_genre_label", "novel.setup.genre_label", False, "", scope="novel", stage="setup", display_name="类型标签"),
+        VariableBinding("novel_world_preset", "novel.setup.world_preset", False, "", scope="novel", stage="setup", display_name="世界基调"),
+        VariableBinding("novel_story_structure", "novel.setup.story_structure", False, "", scope="novel", stage="setup", display_name="剧情结构"),
+        VariableBinding("novel_pacing_control", "novel.setup.pacing_control", False, "", scope="novel", stage="setup", display_name="节奏把控"),
+        VariableBinding("novel_writing_style", "novel.setup.writing_style", False, "", scope="novel", stage="setup", display_name="写作风格"),
+        VariableBinding("novel_special_requirements", "novel.setup.special_requirements", False, "", scope="novel", stage="setup", display_name="特殊要求"),
+        VariableBinding("worldbuilding_style", "worldbuilding.style", False, "", scope="novel", stage="worldbuilding", display_name="文风公约"),
+        VariableBinding("worldbuilding_content", "worldbuilding.content", False, {}, scope="novel", stage="worldbuilding", value_type="object", display_name="结构化世界观"),
+        VariableBinding("characters_list", "characters.list", False, [], scope="novel", stage="characters", value_type="list", display_name="角色列表"),
+        VariableBinding("locations_list", "locations.list", False, [], scope="novel", stage="locations", value_type="list", display_name="地点列表"),
+        VariableBinding("plot_outline", "plot.outline", False, {}, scope="novel", stage="planning", value_type="object", display_name="剧情总纲"),
+        VariableBinding("plot_stage_plan", "plot.stage_plan", False, [], scope="novel", stage="planning", value_type="list", display_name="阶段规划"),
+        VariableBinding("context", "", False, "", source="runtime_only", scope="runtime", stage="writing", display_name="结构化上下文"),
+        VariableBinding("planning_section", "", False, "", source="runtime_only", scope="runtime", stage="planning", display_name="规划约束块"),
+        VariableBinding("voice_block", "", False, "", source="runtime_only", scope="runtime", stage="characters", display_name="角色声线块"),
+        VariableBinding("genre_profile_block", "", False, "", source="derived_config", scope="novel", stage="planning", display_name="类型画像提示块"),
+        VariableBinding("genre_opening_profile", "", False, {}, source="derived_config", scope="novel", stage="planning", value_type="object", display_name="类型开篇画像"),
+        VariableBinding("genre_reader_contract", "", False, {}, source="derived_config", scope="novel", stage="planning", value_type="object", display_name="读者留存契约"),
+        VariableBinding("genre_rhythm_constraints", "", False, {}, source="derived_config", scope="novel", stage="planning", value_type="object", display_name="类型节奏约束"),
     ]
 
 

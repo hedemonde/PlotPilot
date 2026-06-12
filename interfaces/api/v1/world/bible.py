@@ -8,7 +8,7 @@ import json
 import asyncio
 
 from application.world.services.bible_service import BibleService
-from application.world.services.auto_bible_generator import AutoBibleGenerator
+from application.world.services.auto_bible_generator import AutoBibleGenerator, build_auto_bible_novel_context
 from application.world.services.auto_knowledge_generator import AutoKnowledgeGenerator
 from application.world.dtos.bible_dto import BibleDTO
 from application.ai_invocation.dtos import InvocationPolicy, InvocationRequest
@@ -334,7 +334,8 @@ async def generate_bible(
                 novel_id,
                 premise,
                 novel.target_chapters,
-                stage=stage
+                stage=stage,
+                novel_context=build_auto_bible_novel_context(novel, premise=premise),
             )
 
             # 构建 Bible 摘要供 Knowledge 生成使用
@@ -610,6 +611,7 @@ async def _sse_bible_generator(
             yield _sse_fmt("error", {"message": "小说不存在，无法生成 Bible"})
             return
         premise = strip_v1_structure_black_box_hint(novel.premise if novel.premise else novel.title)
+        novel_context = build_auto_bible_novel_context(novel, premise=premise)
     except Exception as e:
         yield _sse_fmt("error", {"message": f"获取小说信息失败: {e}"})
         return
@@ -666,7 +668,11 @@ async def _sse_bible_generator(
             await asyncio.sleep(0)
             try:
                 style_chunks: list[str] = []
-                async for item in bible_generator._stream_style(premise, novel.target_chapters):
+                async for item in bible_generator._stream_style(
+                    premise,
+                    novel.target_chapters,
+                    novel_context,
+                ):
                     if item.get("type") == "chunk":
                         chunk_text = item.get("text") or ""
                         if chunk_text:
@@ -718,7 +724,9 @@ async def _sse_bible_generator(
 
             try:
                 async for item in bible_generator._stream_worldbuilding_full(
-                    premise, novel.target_chapters,
+                    premise,
+                    novel.target_chapters,
+                    novel_context,
                 ):
                     if item["type"] == "chunk":
                         chunk_text = item.get("text") or ""
@@ -860,7 +868,10 @@ async def _sse_bible_generator(
             used_char_ids = set()
 
             async for item in bible_generator._stream_generate_characters(
-                premise, novel.target_chapters, existing_worldbuilding
+                premise,
+                novel.target_chapters,
+                existing_worldbuilding,
+                novel_context,
             ):
                 if item["type"] == "character":
                     char_data = item["content"]
@@ -930,7 +941,11 @@ async def _sse_bible_generator(
             location_ids = []
 
             async for item in bible_generator._stream_generate_locations(
-                premise, novel.target_chapters, existing_worldbuilding, existing_characters
+                premise,
+                novel.target_chapters,
+                existing_worldbuilding,
+                existing_characters,
+                novel_context,
             ):
                 if item["type"] == "location":
                     loc_data = item["content"]

@@ -8,6 +8,15 @@
 类型：{genre_label}
 基调：{world_preset}
 特殊要求：{special_requirements}
+目标篇幅：{target_chapters} 章，每章约 {target_words_per_chapter} 字
+
+【类型画像 / 读者契约 / 节奏约束】
+类型开篇画像：{genre_opening_profile}
+读者留存契约：{genre_reader_contract}
+类型节奏约束：{genre_rhythm_constraints}
+
+【字段契约】
+{fields_desc}
 
 请生成世界观。
 

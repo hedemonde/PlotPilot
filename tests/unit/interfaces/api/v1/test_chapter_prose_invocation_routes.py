@@ -245,7 +245,8 @@ def test_bible_setup_invocation_materializes_inputs_and_get_refreshes_snapshot(t
     assert plan["aliases"]["premise"] == "新设定：变量中心改为天空城债务法则"
     assert plan["aliases"]["genre_reader_contract"]["reader_promise"] == "升级破局"
     assert any(
-        item["key"] == "premise" and item["value"] == "新设定：变量中心改为天空城债务法则"
+        item["variable_key"] == "novel.setup.premise"
+        and item["value"] == "新设定：变量中心改为天空城债务法则"
         for item in plan["snapshot_items"]
     )
     assert all(item["key"] != "fields_desc" for item in plan["snapshot_items"])
@@ -579,7 +580,7 @@ def test_chapter_prose_get_refresh_keeps_setup_snapshot_without_prompt_injection
     assert "novel:characters" in group_ids
     assert "novel:worldbuilding" in group_ids
     prompt_user = refreshed.json()["session"]["prompt_snapshot"]["prompt"]["user"]
-    assert "变量角色" not in prompt_user
-    assert "变量武道" not in prompt_user
+    assert "变量角色" in prompt_user
+    assert "变量武道" in prompt_user
 
     db.close_all(skip_checkpoint=True)

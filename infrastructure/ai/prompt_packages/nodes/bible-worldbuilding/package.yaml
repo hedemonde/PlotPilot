@@ -29,5 +29,29 @@ variables:
 - name: special_requirements
   desc: 特殊要求
   type: string
+- name: target_chapters
+  desc: 目标章节数
+  type: integer
+  default: 0
+- name: target_words_per_chapter
+  desc: 每章目标字数
+  type: integer
+  default: 0
+- name: fields_desc
+  desc: 五维世界观字段契约
+  type: string
+  default: ''
+- name: genre_opening_profile
+  desc: 类型开篇画像
+  type: object
+  default: {}
+- name: genre_reader_contract
+  desc: 读者留存契约
+  type: object
+  default: {}
+- name: genre_rhythm_constraints
+  desc: 类型节奏约束
+  type: object
+  default: {}
 id: bible-worldbuilding
 sort_order: 27
